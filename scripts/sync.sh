@@ -1,5 +1,6 @@
 #!/bin/bash
-set -euo pipefail
+set -u # 移除 -e，我们要手动处理错误
+# set -o pipefail # 移除 pipefail，避免部分命令管道错误导致直接退出
 
 CONFIG=$1
 
@@ -11,6 +12,12 @@ FAILED=0
 REPORT="📊 同步报告（UTC+8）\n"
 TZ_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
 REPORT+="🕒 时间：$TZ_TIME\n\n"
+
+# 检查 jq 是否安装
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is not installed."
+    exit 1
+fi
 
 for row in $(jq -c '.[]' "$CONFIG"); do
   TOTAL=$((TOTAL + 1))
@@ -40,8 +47,9 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   echo "Update detected, syncing..."
 
   rm -rf repo
+  # 使用 token 克隆以通过鉴权
   git clone "https://$GH_PAT@github.com/$fork.git" repo
-  cd repo
+  cd repo || exit
 
   git config user.name  "github-actions[bot]"
   git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -49,53 +57,34 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   git remote add upstream "https://github.com/$upstream.git"
   git fetch upstream
 
-  # ⭐ 强制更新 fork/main 最新状态（解决 non-fast-forward）
-  git fetch origin --prune --tags
-
+  # 强制重置本地环境与远程 fork 一致
   git checkout "$branch"
   git reset --hard "origin/$branch"
 
   LOG_FILE="../sync_error.log"
   rm -f "$LOG_FILE"
 
-  MERGE_STATUS="success"
-  PUSH_STATUS="success"
+  SYNC_STATUS="success"
+  
+  echo "Trying MERGE with strategy 'ours'..."
 
-  echo "Trying REBASE first..."
-
-  # ⭐ 方案 A：rebase
-  set +e
-  git rebase "upstream/$branch" >> /dev/null 2>>"$LOG_FILE"
-  REBASE_CODE=$?
-  set -e
-
-  if [ $REBASE_CODE -ne 0 ]; then
-    echo "Rebase failed, fallback to merge -X ours..."
-    git rebase --abort >/dev/null 2>&1 || true
-
-    # ⭐ 方案 B：merge -X ours（保留你的修改）
-    set +e
-    git merge -X ours "upstream/$branch" --no-edit >> /dev/null 2>>"$LOG_FILE"
-    MERGE_CODE=$?
-    set -e
-
-    if [ $MERGE_CODE -ne 0 ]; then
-      MERGE_STATUS="fail"
-    fi
-  fi
-
-  # ⭐ push（必须使用 --force-with-lease）
-  if [ "$MERGE_STATUS" != "fail" ]; then
-    set +e
-    git push --force-with-lease "https://$GH_PAT@github.com/$fork.git" "$branch" >> /dev/null 2>>"$LOG_FILE"
-    PUSH_CODE=$?
-    set -e
-
-    if [ $PUSH_CODE -ne 0 ]; then
-      PUSH_STATUS="fail"
-    fi
+  # ⭐ 核心修改：直接使用 Merge，不再尝试 Rebase
+  # -X ours: 遇到冲突时，保留刚才 clone 下来的（你自己的）版本
+  # --allow-unrelated-histories: 防止因上游重置历史导致的报错
+  # &> "$LOG_FILE": 将标准输出和错误输出都写入日志，防止日志为空
+  if ! git merge -X ours "upstream/$branch" --no-edit --allow-unrelated-histories &> "$LOG_FILE"; then
+      echo "Merge failed!"
+      cat "$LOG_FILE" # 在 Action 终端打印错误以便调试
+      SYNC_STATUS="fail"
   else
-    PUSH_STATUS="fail"
+      echo "Merge success, pushing..."
+      # ⭐ Push
+      # 这里不需要 force，因为是 merge 操作，是新增 commit。
+      # 但为了保险（防止之前的 rebase 导致历史分叉），保留 force-with-lease
+      if ! git push --force-with-lease "https://$GH_PAT@github.com/$fork.git" "$branch" &>> "$LOG_FILE"; then
+          echo "Push failed!"
+          SYNC_STATUS="fail"
+      fi
   fi
 
   cd ..
@@ -103,16 +92,17 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   # ⭐ 单仓库通知
   if [ "$notify" = "true" ]; then
-    if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
+    if [ "$SYNC_STATUS" = "success" ]; then
       MESSAGE="✅ Sync Success
 Repo: $fork
 Branch: $branch
 Upstream: $upstream
 Commit: $UPSTREAM_SHA"
     else
+      # 读取日志内容（只取最后20行，防止消息过长）
       ERROR_LOG=""
       if [ -f "$LOG_FILE" ]; then
-        ERROR_LOG=$(cat "$LOG_FILE")
+        ERROR_LOG=$(tail -n 20 "$LOG_FILE")
       fi
 
       MESSAGE="❌ Sync Failed
@@ -125,13 +115,14 @@ Commit: $UPSTREAM_SHA
 $ERROR_LOG"
     fi
 
+    # URL Encode message roughly or rely on curl data processing
     curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
       -d chat_id="$TG_CHAT_ID" \
       -d text="$MESSAGE" >/dev/null
   fi
 
   # ⭐ 统计成功/失败
-  if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
+  if [ "$SYNC_STATUS" = "success" ]; then
     SUCCESS=$((SUCCESS + 1))
     REPORT+="• $fork（$branch）：同步成功\n"
   else
