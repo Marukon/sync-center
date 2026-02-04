@@ -1,0 +1,42 @@
+[
+  {
+    "fork": "Marukon/pdfcraft",
+    "upstream": "PDFCraftTool/pdfcraft",
+    "branch": "main"
+  },
+  {
+    "fork": "Marukon/InstallerX-Revived",
+    "upstream": "wxxsfxyzm/InstallerX-Revived",
+    "branch": "main"
+  },
+  {
+    "fork": "Marukon/next-ai-draw-io",
+    "upstream": "DayuanJiang/next-ai-draw-io",
+    "branch": "main"
+  },
+  {
+    "fork": "Marukon/excalidraw",
+    "upstream": "excalidraw/excalidraw",
+    "branch": "master"
+  },
+  {
+    "fork": "Marukon/drawio",
+    "upstream": "jgraph/drawio",
+    "branch": "dev"
+  },
+  {
+    "fork": "Marukon/jsoncrack.com",
+    "upstream": "AykutSarac/jsoncrack.com",
+    "branch": "main"
+  },
+  {
+    "fork": "Marukon/SRK-Toolbox",
+    "upstream": "Raka-loah/SRK-Toolbox",
+    "branch": "master"
+  },
+  {
+    "fork": "Marukon/jsoneditor",
+    "upstream": "josdejong/jsoneditor",
+    "branch": "develop"
+  }
+]
