@@ -5,6 +5,10 @@ on:
     - cron: "0 */6 * * *" 
   workflow_dispatch:
 
+# ⭐ 关键修改1：赋予 Actions 写入仓库的权限
+permissions:
+  contents: write
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -23,4 +27,24 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           chmod +x scripts/sync.sh
+          # 确保这里的文件名和你的配置文件名一致 (你上面写的是 repos.json，脚本里如果是config.json请自行对应)
           ./scripts/sync.sh repos.json
+
+      # ⭐ 关键修改2：将 sync_state.json 提交回仓库
+      - name: Commit Sync State
+        run: |
+          # 配置临时的 git 用户身份
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          # 添加缓存文件
+          git add sync_state.json
+          
+          # 检查是否有变化：如果有变化才 Commit，避免空提交报错
+          if ! git diff --cached --quiet; then
+            git commit -m "Update sync cache [skip ci]"
+            git push
+            echo "✅ Cache saved to repository."
+          else
+            echo "💤 Cache not changed, skipping commit."
+          fi
