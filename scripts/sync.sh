@@ -3,7 +3,20 @@ set -euo pipefail
 
 CONFIG=$1
 
+TOTAL=0
+NOCHANGE=0
+SUCCESS=0
+FAILED=0
+
+REPORT="📊 同步报告（UTC+8）\n"
+
+# 获取北京时间
+TZ_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+REPORT+="🕒 时间：$TZ_TIME\n\n"
+
 for row in $(jq -c '.[]' "$CONFIG"); do
+  TOTAL=$((TOTAL + 1))
+
   fork=$(echo "$row" | jq -r '.fork')
   upstream=$(echo "$row" | jq -r '.upstream')
   branch=$(echo "$row" | jq -r '.branch')
@@ -22,9 +35,11 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   echo "Upstream SHA: $UPSTREAM_SHA"
   echo "Fork  SHA:    $FORK_SHA"
 
-  # 如果相同，则跳过同步（不通知）
+  # 无变化
   if [ "$UPSTREAM_SHA" = "$FORK_SHA" ]; then
     echo "No update for $fork ($branch), skipping..."
+    NOCHANGE=$((NOCHANGE + 1))
+    REPORT+="• $fork（$branch）：无变化\n"
     continue
   fi
 
@@ -35,7 +50,6 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   git clone "https://$GH_PAT@github.com/$fork.git" repo
   cd repo
 
-  # 配置 Git 身份
   git config user.name  "github-actions[bot]"
   git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -45,36 +59,45 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   git checkout -B "$branch" "origin/$branch"
 
-  MERGE_STATUS="success"
-  PUSH_STATUS="success"
-
   LOG_FILE="../sync_error.log"
   rm -f "$LOG_FILE"
 
-  echo "Trying REBASE first (方案 A)..."
+  MERGE_STATUS="success"
+  PUSH_STATUS="success"
 
-  # ⭐ 方案 A：rebase
-  if git rebase "upstream/$branch" >> /dev/null 2>>"$LOG_FILE"; then
+  echo "Trying REBASE first..."
+
+  # ⭐ 方案 A：rebase（不会被 set -e 杀掉）
+  set +e
+  git rebase "upstream/$branch" >> /dev/null 2>>"$LOG_FILE"
+  REBASE_CODE=$?
+  set -e
+
+  if [ $REBASE_CODE -eq 0 ]; then
     echo "Rebase success."
   else
-    echo "Rebase failed, falling back to MERGE -X ours (方案 B)..."
-    MERGE_STATUS="fallback"
+    echo "Rebase failed, fallback to merge -X ours..."
 
     git rebase --abort >/dev/null 2>&1 || true
 
-    # ⭐ 方案 B：merge -X ours
-    if git merge -X ours "upstream/$branch" --no-edit >> /dev/null 2>>"$LOG_FILE"; then
-      echo "Merge -X ours success."
-    else
-      echo "Merge -X ours failed."
+    set +e
+    git merge -X ours "upstream/$branch" --no-edit >> /dev/null 2>>"$LOG_FILE"
+    MERGE_CODE=$?
+    set -e
+
+    if [ $MERGE_CODE -ne 0 ]; then
       MERGE_STATUS="fail"
     fi
   fi
 
   # ⭐ push
   if [ "$MERGE_STATUS" != "fail" ]; then
-    echo "Pushing to $fork:$branch ..."
-    if ! git push "https://$GH_PAT@github.com/$fork.git" "$branch" >> /dev/null 2>>"$LOG_FILE"; then
+    set +e
+    git push "https://$GH_PAT@github.com/$fork.git" "$branch" >> /dev/null 2>>"$LOG_FILE"
+    PUSH_CODE=$?
+    set -e
+
+    if [ $PUSH_CODE -ne 0 ]; then
       PUSH_STATUS="fail"
     fi
   else
@@ -84,7 +107,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   cd ..
   rm -rf repo
 
-  # ⭐ Telegram 通知逻辑
+  # ⭐ 单仓库通知
   if [ "$notify" = "true" ]; then
     if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
       MESSAGE="✅ Sync Success
@@ -93,7 +116,6 @@ Branch: $branch
 Upstream: $upstream
 Commit: $UPSTREAM_SHA"
     else
-      # 只有失败时才读取日志
       ERROR_LOG=""
       if [ -f "$LOG_FILE" ]; then
         ERROR_LOG=$(cat "$LOG_FILE")
@@ -114,4 +136,23 @@ $ERROR_LOG"
       -d text="$MESSAGE" >/dev/null
   fi
 
+  # ⭐ 统计成功/失败
+  if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
+    SUCCESS=$((SUCCESS + 1))
+    REPORT+="• $fork（$branch）：同步成功\n"
+  else
+    FAILED=$((FAILED + 1))
+    REPORT+="• $fork（$branch）：同步失败\n"
+  fi
+
 done
+
+# ⭐ 最终同步报告
+REPORT+="\n📦 总仓库：$TOTAL\n"
+REPORT+="🔹 无变化：$NOCHANGE\n"
+REPORT+="🟢 成功：$SUCCESS\n"
+REPORT+="🔴 失败：$FAILED\n"
+
+curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
+  -d chat_id="$TG_CHAT_ID" \
+  -d text="$REPORT" >/dev/null
