@@ -2,86 +2,103 @@
   {
     "fork": "Marukon/pdfcraft",
     "upstream": "PDFCraftTool/pdfcraft",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   },
   {
     "fork": "Marukon/InstallerX-Revived",
     "upstream": "wxxsfxyzm/InstallerX-Revived",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   },
   {
     "fork": "Marukon/next-ai-draw-io",
     "upstream": "DayuanJiang/next-ai-draw-io",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   },
   {
     "fork": "Marukon/excalidraw",
     "upstream": "excalidraw/excalidraw",
-    "branch": "master"
+    "branch": "master",
+    "notify": true
   },
   {
     "fork": "Marukon/drawio",
     "upstream": "jgraph/drawio",
-    "branch": "dev"
+    "branch": "dev",
+    "notify": true
   },
   {
     "fork": "Marukon/jsoncrack.com",
     "upstream": "AykutSarac/jsoncrack.com",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   },
   {
     "fork": "Marukon/SRK-Toolbox",
     "upstream": "Raka-loah/SRK-Toolbox",
-    "branch": "master"
+    "branch": "master",
+    "notify": true
   },
   {
     "fork": "Marukon/jsoneditor",
     "upstream": "josdejong/jsoneditor",
-    "branch": "develop"
+    "branch": "develop",
+    "notify": true
   },
   {
     "fork": "Marukon/Action-Build",
     "upstream": "Numbersf/Action-Build",
-    "branch": "ReSukiSU"
+    "branch": "ReSukiSU",
+    "notify": true
   },
   {
     "fork": "Marukon/Action-Build",
     "upstream": "Numbersf/Action-Build",
-    "branch": "SukiSU-Ultra"
+    "branch": "SukiSU-Ultra",
+    "notify": true
   },
   {
     "fork": "Marukon/ace-builds",
     "upstream": "ajaxorg/ace-builds",
-    "branch": "master"
+    "branch": "master",
+    "notify": true
   },
   {
     "fork": "Marukon/miaozitie",
     "upstream": "caicaicai/miaozitie",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   },
   {
     "fork": "Marukon/pic-smaller",
     "upstream": "joye61/pic-smaller",
-    "branch": "master"
+    "branch": "master",
+    "notify": true
   },
   {
     "fork": "Marukon/fancy-translator",
     "upstream": "daidr/fancy-translator",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   },
   {
     "fork": "Marukon/jq-web",
     "upstream": "fiatjaf/jq-web",
-    "branch": "master"
+    "branch": "master",
+    "notify": true
   },
   {
     "fork": "Marukon/win11React",
     "upstream": "blueedgetechno/win11React",
-    "branch": "master"
+    "branch": "master",
+    "notify": true
   },
   {
     "fork": "Marukon/QR-Code-Generator",
     "upstream": "StudyJam/QR-Code-Generator",
-    "branch": "main"
+    "branch": "main",
+    "notify": true
   }
 ]
