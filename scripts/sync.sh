@@ -47,6 +47,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   MERGE_STATUS="success"
   PUSH_STATUS="success"
+
   LOG_FILE="../sync_error.log"
   rm -f "$LOG_FILE"
 
@@ -59,10 +60,9 @@ for row in $(jq -c '.[]' "$CONFIG"); do
     echo "Rebase failed, falling back to MERGE -X ours (方案 B)..."
     MERGE_STATUS="fallback"
 
-    # 取消 rebase 状态
     git rebase --abort >/dev/null 2>&1 || true
 
-    # ⭐ 方案 B：merge -X ours（保留你的修改）
+    # ⭐ 方案 B：merge -X ours
     if git merge -X ours "upstream/$branch" --no-edit >> /dev/null 2>>"$LOG_FILE"; then
       echo "Merge -X ours success."
     else
@@ -71,7 +71,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
     fi
   fi
 
-  # 如果合并成功 → push
+  # ⭐ push
   if [ "$MERGE_STATUS" != "fail" ]; then
     echo "Pushing to $fork:$branch ..."
     if ! git push "https://$GH_PAT@github.com/$fork.git" "$branch" >> /dev/null 2>>"$LOG_FILE"; then
@@ -84,7 +84,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   cd ..
   rm -rf repo
 
-  # Telegram 通知逻辑
+  # ⭐ Telegram 通知逻辑
   if [ "$notify" = "true" ]; then
     if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
       MESSAGE="✅ Sync Success
@@ -93,7 +93,12 @@ Branch: $branch
 Upstream: $upstream
 Commit: $UPSTREAM_SHA"
     else
-      ERROR_LOG=$(cat "$LOG_FILE")
+      # 只有失败时才读取日志
+      ERROR_LOG=""
+      if [ -f "$LOG_FILE" ]; then
+        ERROR_LOG=$(cat "$LOG_FILE")
+      fi
+
       MESSAGE="❌ Sync Failed
 Repo: $fork
 Branch: $branch
