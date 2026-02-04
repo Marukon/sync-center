@@ -10,11 +10,11 @@ FAILED=0
 
 SUCCESS_LIST=""
 
-# 📅 北京时间
+# 北京时间
 TZ_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
 
-REPORT="📊 *上游同步报告*\n"
-REPORT+="🕒 时间：$TZ_TIME\n\n"
+REPORT="📊 *上游同步报告（北京时间）*\n"
+REPORT+="🕒 $TZ_TIME\n\n"
 
 for row in $(jq -c '.[]' "$CONFIG"); do
   TOTAL=$((TOTAL + 1))
@@ -28,12 +28,13 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   # 获取 upstream 最新 commit SHA
   UPSTREAM_SHA=$(curl -s -H "Authorization: token $GH_PAT" \
-    "https://api.github.com/repos/$upstream/commits/$branch" | jq -r '.sha')
+    "https://api.github.com/repos/$upstream/branches/$branch" | jq -r '.commit.sha')
 
   # 获取 fork 最新 commit SHA
   FORK_SHA=$(curl -s -H "Authorization: token $GH_PAT" \
-    "https://api.github.com/repos/$fork/commits/$branch" | jq -r '.sha')
+    "https://api.github.com/repos/$fork/branches/$branch" | jq -r '.commit.sha')
 
+  # ⭐ 只有 upstream 有新 commit 才同步
   if [ "$UPSTREAM_SHA" = "$FORK_SHA" ]; then
     echo "No update, skipping."
     NOCHANGE=$((NOCHANGE + 1))
@@ -64,7 +65,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   echo "Merging upstream..."
 
-  # ⭐ 只使用 merge -X ours（保留你的修改）
+  # ⭐ merge-only（保留你的修改）
   set +e
   git merge -X ours "upstream/$branch" --no-edit >> /dev/null 2>>"$LOG_FILE"
   MERGE_CODE=$?
@@ -116,7 +117,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
     curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
       -d chat_id="$TG_CHAT_ID" \
-      -d parse_mode="Markdown" \
+      -d parse_mode="MarkdownV2" \
       -d text="$MESSAGE" >/dev/null
   fi
 
@@ -141,5 +142,5 @@ fi
 
 curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
   -d chat_id="$TG_CHAT_ID" \
-  -d parse_mode="Markdown" \
+  -d parse_mode="MarkdownV2" \
   -d text="$REPORT" >/dev/null
