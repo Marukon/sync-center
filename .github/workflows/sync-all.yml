@@ -2,11 +2,8 @@ name: Sync All Forks
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "*/10 * * * *"   # 每 10 分钟检查一次
   workflow_dispatch:
-  
-env:
-  GH_PAT: ${{ secrets.GH_PAT }}
 
 jobs:
   sync:
@@ -15,13 +12,15 @@ jobs:
     steps:
       - name: Checkout sync-center
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      - name: Sync all repos
+      - name: Run sync
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           chmod +x scripts/sync.sh
           ./scripts/sync.sh repos.json
