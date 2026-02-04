@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -u   # 不能用 set -e，否则脚本中途退出导致报告不发送
 
 CONFIG=$1
 
@@ -26,36 +26,52 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   echo "=== Checking $fork ($branch) ==="
 
-  # 获取 upstream 最新 commit SHA
+  # 获取 upstream 最新 commit
   UPSTREAM_SHA=$(curl -s -H "Authorization: token $GH_PAT" \
     "https://api.github.com/repos/$upstream/branches/$branch" | jq -r '.commit.sha')
 
-  # 获取 fork 最新 commit SHA
+  # 获取 fork 最新 commit
   FORK_SHA=$(curl -s -H "Authorization: token $GH_PAT" \
     "https://api.github.com/repos/$fork/branches/$branch" | jq -r '.commit.sha')
 
-  # ⭐ 只有 upstream 有新 commit 才同步
-  if [ "$UPSTREAM_SHA" = "$FORK_SHA" ]; then
-    echo "No update, skipping."
+  # ⭐ 判断 upstream 是否领先（而不是 SHA 是否不同）
+  # 如果 upstream 有新 commit → upstream ahead > 0
+  TMP_DIR=$(mktemp -d)
+  cd "$TMP_DIR"
+
+  git init -q
+  git remote add upstream "https://github.com/$upstream.git"
+  git remote add fork "https://github.com/$fork.git"
+  git fetch upstream -q
+  git fetch fork -q
+
+  AHEAD=$(git rev-list --left-right --count fork/$branch...upstream/$branch | awk '{print $2}')
+
+  cd - >/dev/null
+  rm -rf "$TMP_DIR"
+
+  if [ "$AHEAD" -eq 0 ]; then
+    echo "Upstream not ahead, skipping."
     NOCHANGE=$((NOCHANGE + 1))
     continue
   fi
 
-  echo "Update detected, syncing..."
+  echo "Upstream ahead by $AHEAD commits → syncing..."
 
+  # ⭐ 开始同步
   rm -rf repo
-  git clone "https://$GH_PAT@github.com/$fork.git" repo
+  git clone "https://$GH_PAT@github.com/$fork.git" repo -q
   cd repo
 
   git config user.name  "github-actions[bot]"
   git config user.email "github-actions[bot]@users.noreply.github.com"
 
   git remote add upstream "https://github.com/$upstream.git"
-  git fetch upstream
-  git fetch origin --prune --tags
+  git fetch upstream -q
+  git fetch origin --prune --tags -q
 
-  git checkout "$branch"
-  git reset --hard "origin/$branch"
+  git checkout "$branch" -q
+  git reset --hard "origin/$branch" -q
 
   LOG_FILE="../sync_error.log"
   rm -f "$LOG_FILE"
@@ -63,26 +79,16 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   MERGE_STATUS="success"
   PUSH_STATUS="success"
 
-  echo "Merging upstream..."
-
   # ⭐ merge-only（保留你的修改）
-  set +e
   git merge -X ours "upstream/$branch" --no-edit >> /dev/null 2>>"$LOG_FILE"
-  MERGE_CODE=$?
-  set -e
-
-  if [ $MERGE_CODE -ne 0 ]; then
+  if [ $? -ne 0 ]; then
     MERGE_STATUS="fail"
   fi
 
   # ⭐ push（安全覆盖）
-  if [ "$MERGE_STATUS" != "fail" ]; then
-    set +e
+  if [ "$MERGE_STATUS" = "success" ]; then
     git push --force-with-lease "https://$GH_PAT@github.com/$fork.git" "$branch" >> /dev/null 2>>"$LOG_FILE"
-    PUSH_CODE=$?
-    set -e
-
-    if [ $PUSH_CODE -ne 0 ]; then
+    if [ $? -ne 0 ]; then
       PUSH_STATUS="fail"
     fi
   else
@@ -94,7 +100,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   # ⭐ 单仓库通知（失败不显示仓库名）
   if [ "$notify" = "true" ]; then
-    if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
+    if [ "$MERGE_STATUS" = "success" ] && [ "$PUSH_STATUS" = "success" ]; then
 
       MESSAGE="🎉 *同步成功*\n"
       MESSAGE+="📦 仓库：\`${fork}\`\n"
@@ -122,7 +128,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   fi
 
   # ⭐ 统计
-  if [ "$MERGE_STATUS" != "fail" ] && [ "$PUSH_STATUS" = "success" ]; then
+  if [ "$MERGE_STATUS" = "success" ] && [ "$PUSH_STATUS" = "success" ]; then
     SUCCESS=$((SUCCESS + 1))
   else
     FAILED=$((FAILED + 1))
@@ -130,7 +136,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
 done
 
-# ⭐ 最终同步报告（不列出失败仓库名）
+# ⭐ 最终同步报告（失败不列出仓库名）
 REPORT+="📦 总仓库：$TOTAL\n"
 REPORT+="🔹 无变化：$NOCHANGE\n"
 REPORT+="🟢 成功：$SUCCESS\n"
