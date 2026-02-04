@@ -38,5 +38,50 @@
     "fork": "Marukon/jsoneditor",
     "upstream": "josdejong/jsoneditor",
     "branch": "develop"
+  },
+  {
+    "fork": "Marukon/Action-Build",
+    "upstream": "Numbersf/Action-Build",
+    "branch": "ReSukiSU"
+  },
+  {
+    "fork": "Marukon/Action-Build",
+    "upstream": "Numbersf/Action-Build",
+    "branch": "SukiSU-Ultra"
+  },
+  {
+    "fork": "Marukon/ace-builds",
+    "upstream": "ajaxorg/ace-builds",
+    "branch": "master"
+  },
+  {
+    "fork": "Marukon/miaozitie",
+    "upstream": "caicaicai/miaozitie",
+    "branch": "main"
+  },
+  {
+    "fork": "Marukon/pic-smaller",
+    "upstream": "joye61/pic-smaller",
+    "branch": "master"
+  },
+  {
+    "fork": "Marukon/fancy-translator",
+    "upstream": "daidr/fancy-translator",
+    "branch": "main"
+  },
+  {
+    "fork": "Marukon/jq-web",
+    "upstream": "fiatjaf/jq-web",
+    "branch": "master"
+  },
+  {
+    "fork": "Marukon/win11React",
+    "upstream": "blueedgetechno/win11React",
+    "branch": "master"
+  },
+  {
+    "fork": "Marukon/QR-Code-Generator",
+    "upstream": "StudyJam/QR-Code-Generator",
+    "branch": "main"
   }
 ]
