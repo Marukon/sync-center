@@ -1,11 +1,12 @@
 #!/bin/bash
 set -u
 
+# 接收配置文件路径
 CONFIG=$1
-# 定义缓存文件路径（建议在 workflow 中配置将此文件 commit 回仓库或使用 actions/cache）
 CACHE_FILE="sync_state.json"
 
-# 如果缓存文件不存在，初始化为空 JSON 对象
+# ================= INIT =================
+# 如果缓存文件不存在，初始化为空 JSON
 if [ ! -f "$CACHE_FILE" ]; then
   echo "{}" > "$CACHE_FILE"
 fi
@@ -16,9 +17,10 @@ SUCCESS=0
 FAILED=0
 UPDATED_REPOS=""
 
+# 获取东八区时间
 TZ_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
 
-# 检查 jq
+# 依赖检查
 if ! command -v jq &> /dev/null; then
     echo "Error: jq is not installed."
     exit 1
@@ -26,10 +28,11 @@ fi
 
 echo "🚀 Starting Sync Job at $TZ_TIME"
 
-# 读取配置循环处理
+# ================= LOOP =================
 for row in $(jq -c '.[]' "$CONFIG"); do
   TOTAL=$((TOTAL + 1))
 
+  # 解析 JSON 配置
   fork=$(echo "$row" | jq -r '.fork')
   upstream=$(echo "$row" | jq -r '.upstream')
   branch=$(echo "$row" | jq -r '.branch')
@@ -38,87 +41,106 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   echo "------------------------------------------------"
   echo "🔍 Checking $fork ($branch)..."
 
-  # 1. 获取 Upstream 最新 SHA (仅获取目标分支，极快)
+  # [STEP 1] 获取 Upstream 特定分支的最新 SHA
   UPSTREAM_API="https://api.github.com/repos/$upstream/commits/$branch"
   UPSTREAM_DATA=$(curl -s -H "Authorization: token $GH_PAT" "$UPSTREAM_API")
-  
-  # 提取 SHA，如果提取失败（如仓库不存在或鉴权失败），跳过
   UPSTREAM_SHA=$(echo "$UPSTREAM_DATA" | jq -r '.sha')
 
+  # 异常处理
   if [ "$UPSTREAM_SHA" == "null" ] || [ -z "$UPSTREAM_SHA" ]; then
       echo "⚠️  Failed to fetch upstream SHA for $upstream. Skipping."
       FAILED=$((FAILED + 1))
       continue
   fi
 
-  # 2. 读取缓存中的 SHA
-  # 注意：这里使用 fork:branch 作为 key，防止同一个仓库不同分支冲突
+  # [STEP 2] 读取本地缓存对比
   CACHE_KEY="${fork}:${branch}"
   LAST_SYNCED_SHA=$(jq -r --arg key "$CACHE_KEY" '.[$key] // "none"' "$CACHE_FILE")
 
   echo "   Upstream Latest: ${UPSTREAM_SHA:0:7}"
   echo "   Last Synced:     ${LAST_SYNCED_SHA:0:7}"
 
-  # 3. 对比 SHA：如果一致，说明上游没动过，直接跳过
+  # 缓存命中：跳过
   if [ "$UPSTREAM_SHA" == "$LAST_SYNCED_SHA" ]; then
-      echo "✅ Upstream has not changed since last sync. Skipping."
+      echo "✅ No changes (Cache Hit). Skipping."
       NOCHANGE=$((NOCHANGE + 1))
       continue
   fi
 
-  echo "⚡ Update detected (New SHA), starting sync..."
+  echo "⚡ Update detected (New SHA), syncing..."
 
-  # ===================== 同步流程 =====================
+  # ================= SYNC PROCESS =================
   rm -rf repo
-  # Clone 你的 Fork
+  
+  # Clone 你的 Fork 仓库
   git clone "https://$GH_PAT@github.com/$fork.git" repo
   cd repo || exit
 
   git config user.name  "github-actions[bot]"
   git config user.email "github-actions[bot]@users.noreply.github.com"
 
-  # 添加 upstream
+  # 添加上游源
   git remote add upstream "https://github.com/$upstream.git"
   
-  # ⭐ 关键修复：只 Fetch 指定分支
-  # 语法：git fetch [remote] [remote_branch]:[local_ref]
-  # 这里我们将上游的 $branch 映射到本地的 refs/remotes/upstream/$branch
-  echo "⬇️  Fetching only upstream/$branch..."
-  git fetch upstream "$branch:refs/remotes/upstream/$branch"
+  echo "⬇️  Fetching ONLY upstream/$branch (No Tags)..."
+  # 只拉取上游指定分支
+  git fetch --no-tags upstream "$branch:refs/remotes/upstream/$branch"
 
-  # 切换到目标分支（确保本地环境对齐）
-  git checkout "$branch"
+  # ⭐⭐⭐ 核心修复 ⭐⭐⭐
+  # 使用 -B 强制创建/重置分支，并明确指定基于 origin (你的 fork)
+  # 这解决了 "matched multiple remote tracking branches" 的歧义错误
+  echo "🔀 Checking out branch..."
+  if ! git checkout -B "$branch" "origin/$branch"; then
+      echo "❌ Checkout failed! (Branch might not exist on origin?)"
+      FAILED=$((FAILED + 1))
+      cd ..
+      rm -rf repo
+      continue
+  fi
 
   LOG_FILE="../sync_error.log"
   rm -f "$LOG_FILE"
   SYNC_STATUS="success"
 
-  echo "🔄 Merging upstream/$branch (Strategy: ours)..."
+  echo "🔄 Merging..."
   
-  # Merge
-  if ! git merge -X ours "upstream/$branch" --no-edit --allow-unrelated-histories &> "$LOG_FILE"; then
+  # 执行合并
+  MERGE_OUTPUT=$(git merge -X ours "upstream/$branch" --no-edit --allow-unrelated-histories 2>&1 | tee "$LOG_FILE")
+  MERGE_EXIT_CODE=${PIPESTATUS[0]}
+
+  if [ $MERGE_EXIT_CODE -ne 0 ]; then
       echo "❌ Merge failed!"
-      cat "$LOG_FILE"
       SYNC_STATUS="fail"
   else
-      echo "✅ Merge success, pushing..."
-      if ! git push "https://$GH_PAT@github.com/$fork.git" "$branch" &>> "$LOG_FILE"; then
-          echo "❌ Push failed!"
-          SYNC_STATUS="fail"
+      # 智能检测 "Already up to date"
+      if echo "$MERGE_OUTPUT" | grep -q "Already up to date"; then
+          echo "✅ Already up to date (No actual changes needed)."
+          SYNC_STATUS="skipped_push"
+      else
+          echo "✅ Merge success, pushing..."
+          # 推送
+          if ! git push "https://$GH_PAT@github.com/$fork.git" "$branch" &>> "$LOG_FILE"; then
+              echo "❌ Push failed!"
+              SYNC_STATUS="fail"
+          fi
       fi
   fi
 
   cd ..
   rm -rf repo
 
-  # ===================== 结果处理 =====================
+  # ================= UPDATE CACHE & REPORT =================
 
-  if [ "$SYNC_STATUS" = "success" ]; then
-    SUCCESS=$((SUCCESS + 1))
-    UPDATED_REPOS+="✅ $fork ($branch)%0A"
+  if [ "$SYNC_STATUS" = "success" ] || [ "$SYNC_STATUS" = "skipped_push" ]; then
     
-    # ⭐ 更新缓存文件：只有成功 Push 后才更新缓存
-    # 使用临时文件原子写入，避免损坏
+    if [ "$SYNC_STATUS" = "success" ]; then
+        SUCCESS=$((SUCCESS + 1))
+        UPDATED_REPOS+="✅ $fork ($branch)%0A"
+    else
+        NOCHANGE=$((NOCHANGE + 1))
+    fi
+    
+    # 更新缓存
     jq --arg key "$CACHE_KEY" --arg sha "$UPSTREAM_SHA" '.[$key] = $sha' "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
     
   else
@@ -143,7 +165,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
 done
 
-# ===================== 最终报告生成 =====================
+# ================= FINAL REPORT =================
 
 REPORT="📊 *Github 上游同步报告*%0A"
 REPORT+="🕒 时间：$TZ_TIME%0A"
@@ -162,5 +184,4 @@ curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
   -d parse_mode="Markdown" \
   -d text="$REPORT" >/dev/null
 
-echo "✅ All done. Current Cache State:"
-cat "$CACHE_FILE"
+echo "✅ All done."
