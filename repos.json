@@ -100,5 +100,17 @@
     "upstream": "StudyJam/QR-Code-Generator",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/gift-book",
+    "upstream": "jingguanzhang/gift-book",
+    "branch": "main",
+    "notify": true
+  },
+  {
+    "fork": "Marukon/PaperStudio",
+    "upstream": "jingguanzhang/PaperStudio",
+    "branch": "main",
+    "notify": true
   }
 ]
