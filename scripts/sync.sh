@@ -167,6 +167,13 @@ done
 
 # ================= FINAL REPORT =================
 
+# 如果仓库总数与无变化数量相等，则不发送任何通知
+if [ "$TOTAL" -eq "$NOCHANGE" ]; then
+    echo "ℹ️ No changes detected. No Telegram notification sent."
+    exit 0
+fi
+
+
 REPORT="📊 *Github 上游同步报告*%0A"
 REPORT+="🕒 时间：$TZ_TIME%0A"
 REPORT+="%0A"
