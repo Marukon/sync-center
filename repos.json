@@ -112,5 +112,11 @@
     "upstream": "jingguanzhang/PaperStudio",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/gushi_namer",
+    "upstream": "holynova/gushi_namer",
+    "branch": "master",
+    "notify": true
   }
 ]
