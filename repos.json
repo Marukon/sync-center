@@ -118,5 +118,11 @@
     "upstream": "holynova/gushi_namer",
     "branch": "master",
     "notify": true
+  },
+  {
+    "fork": "Marukon/it-tools",
+    "upstream": "CorentinTh/it-tools",
+    "branch": "main",
+    "notify": true
   }
 ]
