@@ -124,5 +124,11 @@
     "upstream": "CorentinTh/it-tools",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/XiangYue",
+    "upstream": "fzxx/XiangYue",
+    "branch": "main",
+    "notify": true
   }
 ]
