@@ -130,5 +130,11 @@
     "upstream": "fzxx/XiangYue",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/MouseInc.Settings",
+    "upstream": "shuax/MouseInc.Settings",
+    "branch": "master",
+    "notify": true
   }
 ]
