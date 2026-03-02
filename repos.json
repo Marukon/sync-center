@@ -142,5 +142,11 @@
     "upstream": "iLay1678/i-tools",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/2fa",
+    "upstream": "wuzf/2fa",
+    "branch": "main",
+    "notify": true
   }
 ]
