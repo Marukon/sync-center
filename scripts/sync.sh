@@ -16,6 +16,7 @@ NOCHANGE=0
 SUCCESS=0
 FAILED=0
 UPDATED_REPOS=""
+FAILED_REPOS=""
 
 # 获取东八区时间
 TZ_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
@@ -50,6 +51,7 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   if [ "$UPSTREAM_SHA" == "null" ] || [ -z "$UPSTREAM_SHA" ]; then
       echo "⚠️  Failed to fetch upstream SHA for $upstream. Skipping."
       FAILED=$((FAILED + 1))
+      FAILED_REPOS+="❌ $fork ($branch)%0A"
       continue
   fi
 
@@ -86,13 +88,11 @@ for row in $(jq -c '.[]' "$CONFIG"); do
   # 只拉取上游指定分支
   git fetch --no-tags upstream "$branch:refs/remotes/upstream/$branch"
 
-  # ⭐⭐⭐ 核心修复 ⭐⭐⭐
-  # 使用 -B 强制创建/重置分支，并明确指定基于 origin (你的 fork)
-  # 这解决了 "matched multiple remote tracking branches" 的歧义错误
   echo "🔀 Checking out branch..."
   if ! git checkout -B "$branch" "origin/$branch"; then
       echo "❌ Checkout failed! (Branch might not exist on origin?)"
       FAILED=$((FAILED + 1))
+      FAILED_REPOS+="❌ $fork ($branch)%0A"
       cd ..
       rm -rf repo
       continue
@@ -104,7 +104,6 @@ for row in $(jq -c '.[]' "$CONFIG"); do
 
   echo "🔄 Merging..."
   
-  # 执行合并
   MERGE_OUTPUT=$(git merge -X ours "upstream/$branch" --no-edit --allow-unrelated-histories 2>&1 | tee "$LOG_FILE")
   MERGE_EXIT_CODE=${PIPESTATUS[0]}
 
@@ -112,13 +111,11 @@ for row in $(jq -c '.[]' "$CONFIG"); do
       echo "❌ Merge failed!"
       SYNC_STATUS="fail"
   else
-      # 智能检测 "Already up to date"
       if echo "$MERGE_OUTPUT" | grep -q "Already up to date"; then
           echo "✅ Already up to date (No actual changes needed)."
           SYNC_STATUS="skipped_push"
       else
           echo "✅ Merge success, pushing..."
-          # 推送
           if ! git push "https://$GH_PAT@github.com/$fork.git" "$branch" &>> "$LOG_FILE"; then
               echo "❌ Push failed!"
               SYNC_STATUS="fail"
@@ -140,13 +137,12 @@ for row in $(jq -c '.[]' "$CONFIG"); do
         NOCHANGE=$((NOCHANGE + 1))
     fi
     
-    # 更新缓存
     jq --arg key "$CACHE_KEY" --arg sha "$UPSTREAM_SHA" '.[$key] = $sha' "$CACHE_FILE" > "${CACHE_FILE}.tmp" && mv "${CACHE_FILE}.tmp" "$CACHE_FILE"
     
   else
     FAILED=$((FAILED + 1))
+    FAILED_REPOS+="❌ $fork ($branch)%0A"
     
-    # 失败发送日志
     ERROR_LOG=""
     if [ -f "$LOG_FILE" ]; then
         ERROR_LOG=$(tail -n 15 "$LOG_FILE")
@@ -167,7 +163,6 @@ done
 
 # ================= FINAL REPORT =================
 
-# 如果仓库总数与无变化数量相等，则不发送任何通知
 if [ "$TOTAL" -eq "$NOCHANGE" ]; then
     echo "ℹ️ No changes detected. No Telegram notification sent."
     exit 0
@@ -184,6 +179,10 @@ REPORT+="🔴 更新失败：$FAILED%0A"
 
 if [ -n "$UPDATED_REPOS" ]; then
     REPORT+="%0A🚀 *更新列表*：%0A$UPDATED_REPOS"
+fi
+
+if [ -n "$FAILED_REPOS" ]; then
+    REPORT+="%0A💥 *失败列表*：%0A$FAILED_REPOS"
 fi
 
 curl -s -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
