@@ -134,7 +134,7 @@
   {
     "fork": "Marukon/MouseInc.Settings",
     "upstream": "shuax/MouseInc.Settings",
-    "branch": "master",
+    "branch": "main",
     "notify": true
   },
   {
