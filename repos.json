@@ -148,5 +148,11 @@
     "upstream": "wuzf/2fa",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/couple-flying-chess",
+    "upstream": "woniu9524/couple-flying-chess",
+    "branch": "master",
+    "notify": true
   }
 ]
