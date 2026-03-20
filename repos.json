@@ -154,5 +154,11 @@
     "upstream": "woniu9524/couple-flying-chess",
     "branch": "master",
     "notify": true
+  },
+  {
+    "fork": "Marukon/it-toolbox",
+    "upstream": "Zoroaaa/it-toolbox",
+    "branch": "main",
+    "notify": true
   }
 ]
