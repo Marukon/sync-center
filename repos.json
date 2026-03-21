@@ -160,5 +160,11 @@
     "upstream": "Zoroaaa/it-toolbox",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/gongwen",
+    "upstream": "hehecat/gongwen",
+    "branch": "main",
+    "notify": true
   }
 ]
