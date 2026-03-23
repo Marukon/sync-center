@@ -166,5 +166,11 @@
     "upstream": "hehecat/gongwen",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/rustdesk",
+    "upstream": "rustdesk/rustdesk",
+    "branch": "master",
+    "notify": true
   }
 ]
