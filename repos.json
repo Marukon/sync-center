@@ -172,11 +172,5 @@
     "upstream": "rustdesk/rustdesk",
     "branch": "master",
     "notify": true
-  },
-  {
-    "fork": "Marukon/hbb_common",
-    "upstream": "rustdesk/hbb_common",
-    "branch": "main",
-    "notify": true
   }
 ]
