@@ -172,5 +172,11 @@
     "upstream": "rustdesk/rustdesk",
     "branch": "master",
     "notify": true
+  },
+  {
+    "fork": "Marukon/office-website",
+    "upstream": "baotlake/office-website",
+    "branch": "main",
+    "notify": true
   }
 ]
