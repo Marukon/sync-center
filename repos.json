@@ -178,5 +178,11 @@
     "upstream": "baotlake/office-website",
     "branch": "main",
     "notify": true
+  },
+  {
+    "fork": "Marukon/SBTI",
+    "upstream": "pingfanfan/SBTI",
+    "branch": "main",
+    "notify": true
   }
 ]
