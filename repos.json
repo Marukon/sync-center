@@ -84,6 +84,12 @@
     "notify": true
   },
   {
+    "fork": "Marukon/zashboard",
+    "upstream": "Zephyruso/zashboard",
+    "branch": "main",
+    "notify": true
+  },
+  {
     "fork": "Marukon/jq-web",
     "upstream": "fiatjaf/jq-web",
     "branch": "master",
