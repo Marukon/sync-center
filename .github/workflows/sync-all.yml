@@ -2,7 +2,7 @@ name: Sync All Forks
 
 on:
   schedule:
-    - cron: "0 */6 * * *" 
+    - cron: "0 */12 * * *" 
   workflow_dispatch:
 
 # ❌ 删掉 permissions: contents: write
