@@ -60,12 +60,6 @@
     "notify": true
   },
   {
-    "fork": "Marukon/ace-builds",
-    "upstream": "ajaxorg/ace-builds",
-    "branch": "master",
-    "notify": true
-  },
-  {
     "fork": "Marukon/miaozitie",
     "upstream": "caicaicai/miaozitie",
     "branch": "main",
